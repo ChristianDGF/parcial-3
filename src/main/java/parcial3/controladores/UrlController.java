@@ -88,13 +88,12 @@ public class UrlController {
                         .toList();
             }
 
-            String protocol = ctx.header("X-Forwarded-Proto") != null ? ctx.header("X-Forwarded-Proto") : ctx.scheme();
             String host = ctx.header("X-Forwarded-Host") != null ? ctx.header("X-Forwarded-Host") : ctx.header("Host");
 
             List<Map<String, Object>> urlsConFull = urls.stream().map(url -> {
                 Map<String, Object> data = new HashMap<>();
                 data.put("url", url);
-                data.put("fullUrl", protocol + "://" + host + "/" + url.getShortUrl());
+                data.put("fullUrl","https://" + host + "/" + url.getShortUrl());
                 return data;
             }).toList();
 
@@ -111,14 +110,12 @@ public class UrlController {
             Usuario usuario = ctx.sessionAttribute("usuario");
 
             List<Url> urls = urlDb.findAll();
-
-            String protocol = ctx.header("X-Forwarded-Proto") != null ? ctx.header("X-Forwarded-Proto") : ctx.scheme();
             String host = ctx.header("X-Forwarded-Host") != null ? ctx.header("X-Forwarded-Host") : ctx.header("Host");
 
             List<Map<String, Object>> urlsConFull = urls.stream().map(url -> {
                 Map<String, Object> data = new HashMap<>();
                 data.put("url", url);
-                data.put("fullUrl", protocol + "://" + host + "/" + url.getShortUrl());
+                data.put("fullUrl","https://" + host + "/" + url.getShortUrl());
                 return data;
             }).toList();
 
