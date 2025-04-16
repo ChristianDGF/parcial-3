@@ -114,7 +114,7 @@
     // Generar Código QR al cargar la página
     document.addEventListener('DOMContentLoaded', function() {
         // Obtener el fullUrl desde un elemento oculto o variable inyectada
-        var fullUrl = /*[[${fullUrl}]]*/ "http://localhost:7000/konohaLinks/default";
+        var fullUrl = /*[[${fullUrl}]]*/ "https://localhost:7000/konohaLinks/default";
         if (fullUrl !== "") {
             new QRCode(document.getElementById("qrCodeContainer"), {
                 text: fullUrl,

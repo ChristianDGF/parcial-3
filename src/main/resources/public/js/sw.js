@@ -1,7 +1,9 @@
 const CACHE_NAME = 'konoha-links-cache-v1';
 const urlsToCache = [
     '/',
-    '/index.html',
+    'KonohaLinks/urls',
+    'KonohaLinks/urls/MisUrl',
+    '/listar-urls.html',
     '/js/loadSidebar.js',
     '/images/logo2.png',
     // Agrega otras rutas importantes

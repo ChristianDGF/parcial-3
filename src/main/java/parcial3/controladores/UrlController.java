@@ -151,16 +151,12 @@ public class UrlController {
 
             ObjectMapper mapper = new ObjectMapper();
 
-            String protocol = ctx.header("X-Forwarded-Proto") != null ?
-                    ctx.header("X-Forwarded-Proto") :
-                    ctx.scheme();
-
             String host = ctx.header("X-Forwarded-Host") != null ?
                     ctx.header("X-Forwarded-Host") :
                     (ctx.header("Host") != null ? ctx.header("Host") : "localhost:7000");
 
             // Construir URL completa
-            String fullUrl = protocol + "://" + host + "/" + url.getShortUrl();
+            String fullUrl = "https://" + host + "/" + url.getShortUrl();
 
             Map<String, Object> model = new HashMap<>();
             model.put("fullUrl", fullUrl);
