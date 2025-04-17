@@ -1,13 +1,9 @@
 const CACHE_NAME = 'konoha-links-cache-v1';
 const urlsToCache = [
-    '/',
-    'KonohaLinks/urls',
-    'KonohaLinks/urls/MisUrl',
-    '/listar-urls.html',
-    '/js/loadSidebar.js',
-    '/images/logo2.png',
-    // Agrega otras rutas importantes
+    '/KonohaLinks/urls',
+    '/KonohaLinks/urls/MisUrl',
 ];
+
 
 self.addEventListener('install', function(event) {
     event.waitUntil(
