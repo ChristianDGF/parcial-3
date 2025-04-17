@@ -81,7 +81,7 @@ public class ApiAuthController {
             ctx.json(Map.of("status", "ok", "message", "Usuario creado"));
         });
 
-        app.get("/api/v1/urls", ctx -> {
+        app.get("/api/v1/rest/urls", ctx -> {
             String token = ctx.header("Authorization").replace("Bearer ", "");
             String username = JWTService.validateToken(token);
 
@@ -119,7 +119,7 @@ public class ApiAuthController {
             ctx.json(respuesta);
         });
 
-        app.post("/api/v1/urls", ctx -> {
+        app.post("/api/v1/rest/urls", ctx -> {
             String token = ctx.header("Authorization").replace("Bearer ", "");
             String username = JWTService.validateToken(token);
 

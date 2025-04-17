@@ -1,7 +1,9 @@
 package parcial3.servicios;
 
+import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 import org.bson.types.ObjectId;
+import parcial3.entidades.Acceso;
 import parcial3.entidades.Url;
 import parcial3.entidades.Usuario;
 import parcial3.grpc.CreateUrlRequest;
@@ -10,8 +12,13 @@ import parcial3.grpc.ListUrlsRequest;
 import parcial3.grpc.ListUrlsResponse;
 import parcial3.grpc.UrlData;
 import parcial3.grpc.UrlServiceGrpc;
+
+import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.Random;
 import java.util.stream.Collectors;
 
 /**
@@ -21,79 +28,105 @@ public class UrlGrpcService extends UrlServiceGrpc.UrlServiceImplBase {
 
     private final MongoGestionDb<Url> urlDb;
     private final MongoGestionDb<Usuario> usuarioDb;
+    private final MongoGestionDb<Acceso> accesoDb;
+    private final Random random = new Random();
 
     public UrlGrpcService() {
         this.urlDb = new MongoGestionDb<>(Url.class, "urls");
         this.usuarioDb = new MongoGestionDb<>(Usuario.class, "usuarios");
+        this.accesoDb = new MongoGestionDb<>(Acceso.class, "accesos");
     }
 
     @Override
-    public void listUrls(
-            ListUrlsRequest request,
-            StreamObserver<ListUrlsResponse> responseObserver
-    ) {
-        String userId = request.getUserId();
+    public void listUrls(ListUrlsRequest request, StreamObserver<ListUrlsResponse> responseObserver) {
+        try {
+            String userId = request.getUserId();
+            Usuario usuario = usuarioDb.find(new ObjectId(userId));
 
-        // Filtrar las URLs
-        List<Url> allUrls = urlDb.findAll();
-        List<Url> filtered;
-        if (userId == null || userId.isEmpty()) {
-            filtered = allUrls;
-        } else {
-            filtered = allUrls.stream()
-                    .filter(u -> u.getUsuario().getId().toHexString().equals(userId))
-                    .collect(Collectors.toList());
+            if (usuario == null) {
+                responseObserver.onError(Status.NOT_FOUND
+                        .withDescription("Usuario no encontrado")
+                        .asRuntimeException());
+                return;
+            }
+
+            List<Url> urls = urlDb.findAll().stream()
+                    .filter(u -> u.getUsuario().getId().equals(usuario.getId()))
+                    .toList();
+
+            List<UrlData> urlDataList = urls.stream().map(url -> {
+                List<Acceso> accesos = accesoDb.findAll().stream()
+                        .filter(a -> a.getUrl().getId().equals(url.getId()))
+                        .toList();
+
+                // Calcular estadísticas
+                Map<String, Long> navegadores = accesos.stream()
+                        .collect(Collectors.groupingBy(Acceso::getNavegador, Collectors.counting()));
+                Map<String, Long> sistemasOp = accesos.stream()
+                        .collect(Collectors.groupingBy(Acceso::getSistemaOperativo, Collectors.counting()));
+
+                return UrlData.newBuilder()
+                        .setId(url.getId().toHexString())
+                        .setUrl(url.getUrl())
+                        .setShortUrl(url.getShortUrl())
+                        .setUserId(userId)
+                        .setFechaCreacion(url.getFechaCreacion().format(DateTimeFormatter.ISO_DATE))
+                        .putAllNavegadores(navegadores)
+                        .putAllSistemasOperativos(sistemasOp)
+                        .setTotalAccesos(accesos.size())
+                        .build();
+            }).collect(Collectors.toList());
+
+            ListUrlsResponse response = ListUrlsResponse.newBuilder()
+                    .addAllUrls(urlDataList)
+                    .build();
+
+            responseObserver.onNext(response);
+            responseObserver.onCompleted();
+        } catch (Exception e) {
+            responseObserver.onError(Status.INTERNAL.withDescription("Error al listar URLs").asRuntimeException());
         }
-
-        // Convertimos cada Url a UrlData
-        List<UrlData> dataList = filtered.stream()
-                .map(this::toUrlData)
-                .collect(Collectors.toList());
-
-        // Construimos la respuesta
-        ListUrlsResponse response = ListUrlsResponse.newBuilder()
-                .addAllUrls(dataList)
-                .build();
-
-        responseObserver.onNext(response);
-        responseObserver.onCompleted();
     }
 
     @Override
-    public void createUrl(
-            CreateUrlRequest request,
-            StreamObserver<CreateUrlResponse> responseObserver
-    ) {
-        String userId = request.getUserId();
-        String urlOriginal = request.getUrlOriginal();
+    public void createUrl(CreateUrlRequest request, StreamObserver<CreateUrlResponse> responseObserver) {
+        try {
+            Usuario usuario = usuarioDb.find(new ObjectId(request.getUserId()));
+            if (usuario == null) {
+                responseObserver.onError(Status.NOT_FOUND
+                        .withDescription("Usuario no encontrado")
+                        .asRuntimeException());
+                return;
+            }
 
-        // Buscar el usuario
-        Usuario usuario = usuarioDb.findAll().stream()
-                .filter(u -> u.getId().toHexString().equals(userId))
-                .findFirst()
-                .orElse(null);
+            Url nueva = new Url();
+            nueva.setUrl(request.getUrlOriginal());
+            nueva.setShortUrl(generarCodigoUnico()); // Usar el método aleatorio
+            nueva.setUsuario(usuario);
+            nueva.setFechaCreacion(LocalDate.now());
+            urlDb.crear(nueva);
 
-        if (usuario == null) {
-            responseObserver.onError(new RuntimeException("Usuario no encontrado"));
-            return;
+            // Respuesta con estadísticas vacías
+            UrlData data = UrlData.newBuilder()
+                    .setId(nueva.getId().toHexString())
+                    .setUrl(nueva.getUrl())
+                    .setShortUrl(nueva.getShortUrl())
+                    .setUserId(request.getUserId())
+                    .setFechaCreacion(nueva.getFechaCreacion().format(DateTimeFormatter.ISO_DATE))
+                    .putAllNavegadores(Collections.emptyMap())
+                    .putAllSistemasOperativos(Collections.emptyMap())
+                    .setTotalAccesos(0)
+                    .build();
+
+            CreateUrlResponse response = CreateUrlResponse.newBuilder()
+                    .setUrl(data)
+                    .build();
+
+            responseObserver.onNext(response);
+            responseObserver.onCompleted();
+        } catch (Exception e) {
+            responseObserver.onError(Status.INTERNAL.withDescription("Error al crear URL").asRuntimeException());
         }
-
-        // Crear la nueva URL
-        Url nueva = new Url();
-        nueva.setUrl(urlOriginal);
-        nueva.setShortUrl("grpc-" + System.currentTimeMillis());
-        nueva.setUsuario(usuario);
-        nueva.setFechaCreacion(java.time.LocalDate.now());
-        urlDb.crear(nueva);
-
-        UrlData data = toUrlData(nueva);
-
-        CreateUrlResponse response = CreateUrlResponse.newBuilder()
-                .setUrl(data)
-                .build();
-
-        responseObserver.onNext(response);
-        responseObserver.onCompleted();
     }
 
     private UrlData toUrlData(Url url) {
@@ -108,5 +141,30 @@ public class UrlGrpcService extends UrlServiceGrpc.UrlServiceImplBase {
                                 : ""
                 )
                 .build();
+    }
+
+    private String generarCodigoUnico() {
+        String codigo;
+        int intentos = 0;
+        do {
+            if (intentos++ > 10) { // Límite de intentos
+                throw new RuntimeException("No se pudo generar código único");
+            }
+            codigo = generarCodigoAleatorio();
+        } while (urlExiste(codigo));
+        return codigo;
+    }
+
+    private String generarCodigoAleatorio() {
+        final String CARACTERES = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < 7; i++) {
+            sb.append(CARACTERES.charAt(random.nextInt(CARACTERES.length())));
+        }
+        return sb.toString();
+    }
+
+    private boolean urlExiste(String codigo) {
+        return urlDb.findAll().stream().anyMatch(u -> u.getShortUrl().equals(codigo));
     }
 }

@@ -10,6 +10,9 @@ message UrlData {
   string shortUrl = 3;
   string userId = 4;
   string fechaCreacion = 5;
+  map<string, int64> navegadores = 6;
+  map<string, int64> sistemasOperativos = 7;
+  int64 totalAccesos = 8;
 }
 
 message ListUrlsRequest {
